@@ -6,6 +6,7 @@ Easily import video assets in your vite project and use custom transforms to gen
 This plugin is still under active development. in its current state, there is not much documentation 
 and it is very much *not* configurable. I am using it on my sveltekit website so current config is 
 outputting all optimized video assets into `/static/@videotools/` directory.
+Its not on npm yet so you need to clone and link it locally if you actually want to give it a spin rn.
 
 ## Features
 
@@ -67,9 +68,12 @@ export default defineConfig({
 3. Import video files in your frameworks components / any TS files. (I am using Svelte just as an example)
 ```svelte
 <script lang="ts">
+    // import videos with ?url and available transform directives
+    import videoURL from "$lib/assets/path/to/video.mov?url&format=webm&w=600&bitRate=1.25e6"
 </script>
 
-<video src={video} muted autoplay />
+<!-- Use imported video asset url directly -->
+<video src={videoURL} muted autoplay />
 ```
 
 4. Whener running `vite dev/build` or the dev server / build of you framework of choice, it will 
