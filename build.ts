@@ -20,4 +20,6 @@ await Promise.all([
     naming: "[dir]/[name].cjs",
     target: "node",
   }),
+  // Generate types
+  Bun.$`bunx tsc --declaration --emitDeclarationOnly --outDir ./dist`,
 ]);
