@@ -10,7 +10,7 @@ outputting all optimized video assets into `/static/@videotools/` directory.
 ## Features
 
 - [ ] Import Videos
-  - [ ] Url
+  - [x] Url
   - [ ] Metadata
   - [ ] srcset
   - [ ] Video
