@@ -13,13 +13,13 @@ await Promise.all([
     format: "esm",
     naming: "[dir]/[name].js",
     target: "node",
+    external: ["@mmomtchev/ffmpeg"],
   }),
   Bun.build({
     ...defaultBuildConfig,
     format: "cjs",
     naming: "[dir]/[name].cjs",
     target: "node",
+    external: ["@mmomtchev/ffmpeg"],
   }),
-  // Generate types
-  Bun.$`bunx tsc --declaration --emitDeclarationOnly --outDir ./dist`,
 ]);
