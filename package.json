@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "build": "bun run build.ts",
-    "install": "npm rebuild @mmomtchev/ffmpeg && bun i && bun run build"
+    "install": "bun install && bun run build"
   },
   "devDependencies": {
     "@mmomtchev/ffmpeg": "^2.0.1",
@@ -27,10 +27,5 @@
   "peerDependencies": {
     "typescript": "^5",
     "@mmomtchev/ffmpeg": "^2.0.1",
-    "bun-plugin-dts": "^0.3.0",
-    "debug": "^4.4.3",
-    "@rollup/pluginutils": "^5.3.0",
-    "@types/bun": "^1.2.23",
-    "@types/debug": "^4.1.12"
   }
 }
