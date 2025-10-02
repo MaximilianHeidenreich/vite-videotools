@@ -30,5 +30,7 @@
     "bun-plugin-dts": "^0.3.0",
     "debug": "^4.4.3",
     "@rollup/pluginutils": "^5.3.0",
+    "@types/bun": "^1.2.23",
+    "@types/debug": "^4.1.12"
   }
 }
