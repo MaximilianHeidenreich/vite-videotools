@@ -44,6 +44,16 @@ If you have larger videos, even with transformations, you should probably not st
 repo. TOOD: explain cofiguring custom out path and setting up external host / adapter.
 </details>
 
+<details>
+<summary>Dynamic vite import paths</summary>
+<br>
+Vite import paths must be static so something like importing blog post hero videos by iterating 
+post objects and calling sth. like ``const hero = import(`$lib/assets/${post.heroFile}`)`` won't work!
+
+In such cases you need to do a workaround:
+TODO: give example code
+</details>
+
 ## How to use
 
 1. Install the package using your package manager of choice.
