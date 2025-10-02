@@ -26,5 +26,6 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+    "@mmomtchev/ffmpeg": "^2.0.1"
   }
 }
