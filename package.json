@@ -15,7 +15,6 @@
   "scripts": {
     "build": "bun run build.ts",
     "prepare": "bun run build",
-    "postinstall": "bun run build"
   },
   "devDependencies": {
     "@mmomtchev/ffmpeg": "^2.0.1",
