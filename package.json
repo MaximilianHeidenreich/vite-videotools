@@ -13,9 +13,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun run build.ts"
+    "build": "bun run build.ts",
     "prepare": "npm rebuild @mmomtchev/ffmpeg",
-    "postinstall": "npm rebuild @mmomtchev/ffmpeg",
+    "postinstall": "npm rebuild @mmomtchev/ffmpeg"
   },
   "devDependencies": {
     "@mmomtchev/ffmpeg": "^2.0.1",
