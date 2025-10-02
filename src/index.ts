@@ -86,6 +86,8 @@ export function videotools(userOptions: Partial<VitePluginOptions> = {}) {
         directives,
       });
 
+      await transformer.openVideo();
+
       //const outputFile = `/Users/max/Developer/mvh-homepage/static/@videotools/${transformer.outFileName}`;
       //const relOutputFile = `/@videotools/${transformer.outFileName}`;
 

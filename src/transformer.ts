@@ -14,8 +14,12 @@ import {
 } from "@mmomtchev/ffmpeg/stream";
 
 import debug from "debug";
-import type { FFMPEGConfig } from "./types";
-import { calculateOutputDimensions } from "./utils";
+import type { FFMPEGConfig, VideoMetadata } from "./types";
+import { calculateOutputDimensions, getFileHash } from "./utils";
+
+function pipeAll<T>(source: T, stages: any[]) {
+  return stages.reduce((prev, stage) => prev.pipe(stage), source);
+}
 
 export interface VideoTransformerProps {
   srcFile: ParsedPath;
@@ -26,6 +30,10 @@ export class VideoTransformer {
   readonly srcFile: ParsedPath;
   readonly rawDirectives: URLSearchParams;
   readonly basePath: string;
+
+  demuxer?: Demuxer;
+  videoDecoder?: VideoDecoder;
+  metadata?: VideoMetadata;
 
   get srcFilePath(): string {
     return path.format(this.srcFile);
@@ -51,9 +59,33 @@ export class VideoTransformer {
     } as Console;
   }
 
-  //transform(): Promise<void> {
-  //  return ;
-  //}
+  static async getFileHashName({ file, directives }: { file: ParsedPath; directives: URLSearchParams }) {
+    const hash = await getFileHash(path.format(file));
+    return `${file.base}++${directives.toString()}++${hash}`;
+  }
+
+  async openVideo(): Promise<void> {
+    if (this.demuxer) return;
+    return new Promise((res, rej) => {
+      this.demuxer = new Demuxer({ inputFile: this.srcFilePath });
+
+      this.demuxer.once("ready", () => {
+        if (this.demuxer!.video[0] == undefined) {
+          this.log.error(`No video[0] found in file ${this.srcFilePath}`);
+          return rej(`No video[0] found in file ${this.srcFilePath}`);
+        }
+
+        this.videoDecoder = new VideoDecoder(this.demuxer!.video[0]!);
+        this.metadata = this.videoDecoder.definition();
+
+        return res();
+      });
+      this.demuxer.on("error", (e) => {
+        this.log.error(`Could not open video file ${this.srcFilePath}`);
+        return rej(e);
+      });
+    });
+  }
 
   /**
    * Calls ffmpeg lib with config to create output file
@@ -61,6 +93,7 @@ export class VideoTransformer {
    */
   ffmpeg({
     inputFile,
+    demuxer,
     outputFile,
     outputFormat,
     codec,
@@ -69,16 +102,36 @@ export class VideoTransformer {
     height,
     frameRate,
     pixelFormat,
-  }: { inputFile: string; outputFile: string; outputFormat: string } & FFMPEGConfig): Promise<string> {
+  }: {
+    /** The input file, to use, falls back to internal demuxer if not specified. */
+    inputFile?: string;
+
+    /** Override with custom Demuxer */
+    demuxer?: Demuxer;
+    outputFile: string;
+    outputFormat: string;
+  } & FFMPEGConfig): Promise<string> {
     this.log.debug("Starting FFMPEG for %O", { inputFile, outputFile });
     return new Promise((res, rej) => {
       try {
-        const input = new Demuxer({ inputFile });
+        if (!demuxer && !inputFile && !demuxer && !this.demuxer) {
+          this.log.error("Cannt use ffmpeg without inputFile or demuxer!");
+          return rej("Cannt use ffmpeg without inputFile or demuxer!");
+        }
+        let useExistingDemuxer = true;
+        if (!demuxer && inputFile) {
+          demuxer = new Demuxer({ inputFile });
+          useExistingDemuxer = true;
+        } else if (!demuxer && this.demuxer) {
+          demuxer = this.demuxer;
+        }
 
-        input.on("ready", () => {
+        const process = () => {
+          const input = demuxer!;
+
           if (input.video[0] == undefined) {
             this.log.error(`No video[0] found in file ${inputFile}`);
-            rej();
+            return rej(`No video[0] found in file ${inputFile}`);
           }
           if (input.audio[0] == undefined) {
             this.log.debug(`No audio[0] found in file ${inputFile}`);
@@ -86,8 +139,15 @@ export class VideoTransformer {
 
           // TODO: Add support for audio transforms / keeping audio
           const audioDiscard = new Discarder();
-          const videoInput = new VideoDecoder(input.video[0]!);
-          const videoInputDefinition = videoInput.definition();
+          let videoInput: VideoDecoder;
+          let videoInputDefinition: VideoMetadata;
+          if (this.videoDecoder && this.metadata) {
+            videoInput = this.videoDecoder;
+            videoInputDefinition = this.metadata;
+          } else {
+            videoInput = new VideoDecoder(input.video[0]!);
+            videoInputDefinition = videoInput.definition();
+          }
 
           const { width: outWidth, height: outHeight } = calculateOutputDimensions(
             videoInputDefinition.width,
@@ -145,14 +205,20 @@ export class VideoTransformer {
             rej();
           });
 
-          // This launches the transcoding
-          // Demuxer -> Decoder -> Rescaler -> Encoder -> Muxer
-          let pipeline: any = input.video[0]!.pipe(videoInput);
-          if (videoRescaler) pipeline = pipeline.pipe(videoRescaler);
-          pipeline = pipeline.pipe(videoOutput).pipe(output.video[0]!);
+          const videoPipeline = pipeAll(input.video[0]!, [
+            videoInput,
+            ...(videoRescaler ? [videoRescaler] : []),
+            videoOutput,
+            output.video[0]!,
+          ]);
 
           input.audio[0]?.pipe(audioDiscard);
-        });
+        };
+
+        if (useExistingDemuxer) return process();
+        else {
+          demuxer!.once("ready", process);
+        }
       } catch (err) {
         this.log.error(err);
         rej(err);
@@ -172,7 +238,7 @@ export class VideoTransformer {
     const fps = directives.has("fps") ? new ffmpeg.Rational(Number(directives.get("fps")), 1) : undefined;
     const bitRate = directives.has("bitRate") ? Number(directives.get("bitRate")) : undefined;
 
-    const relOutFile = `/@videotools/${this.srcFile.base}_${directives.toString()}.${format}`;
+    const relOutFile = `/@videotools/${await VideoTransformer.getFileHashName({ file: this.srcFile, directives })}.${format}`;
     const outputFile = `/Users/max/Developer/mvh-homepage/static${relOutFile}`;
 
     let exists = false;
@@ -188,7 +254,7 @@ export class VideoTransformer {
     }
 
     const out = this.ffmpeg({
-      inputFile: this.srcFilePath,
+      //inputFile: this.srcFilePath,
       outputFile,
       outputFormat: format,
 

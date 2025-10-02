@@ -1,4 +1,5 @@
 import ffmpeg from "@mmomtchev/ffmpeg";
+import type { VideoStreamDefinition } from "@mmomtchev/ffmpeg/stream";
 
 export enum ViteImportType {
   /**
@@ -96,6 +97,8 @@ export interface VitePluginOptions {
    */
   //cache?: CacheOptions
 }
+
+export type VideoMetadata = VideoStreamDefinition;
 
 export enum VideoCodec {
   AV_CODEC_H264 = "AV_CODEC_H264",
