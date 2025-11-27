@@ -7,16 +7,13 @@
     "types": "./src/index.ts",
     "default": "./src/index.ts"
   },
-  "trustedDependencies": ["@mmomtchev/ffmpeg"],
   "files": [
     "dist"
   ],
   "dependencies": {
     "vite": "^5 || ^6",
     "@rollup/pluginutils": "^5.3.0",
-    "debug": "^4.4.3",
-        "@mmomtchev/ffmpeg": "^2.0.1"
-
+    "debug": "^4.4.3"
   },
   "devDependencies": {
     "@types/bun": "latest",

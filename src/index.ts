@@ -8,6 +8,9 @@ import type { VitePluginOptions } from "./types.ts";
 
 const storageCache = new Map<string, boolean>();
 
+// Track in-progress transformations to avoid duplicate work
+const transformationQueue = new Map<string, Promise<string>>();
+
 export function videotools(
   userOptions: Partial<VitePluginOptions> = {},
 ): Plugin[] {
@@ -24,7 +27,7 @@ export function videotools(
   let PUBLIC_PATH: string | undefined = undefined;
 
   if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR);
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
   }
 
   const filter = createFilter(userConfig.include, userConfig.exclude);
@@ -52,6 +55,53 @@ export function videotools(
         });
       },
 
+      configureServer(server) {
+        // Middleware to serve transformed videos
+        server.middlewares.use(async (req, res, next) => {
+          if (!req.url?.startsWith("/@videotools/")) {
+            return next();
+          }
+
+          const fileName = req.url.replace("/@videotools/", "");
+          const filePath = resolve(join(CACHE_DIR, fileName));
+
+          // Wait for transformation if in progress
+          const pendingTransform = transformationQueue.get(fileName);
+          if (pendingTransform) {
+            try {
+              await pendingTransform;
+            } catch (err) {
+              res.statusCode = 500;
+              res.end("Video transformation failed");
+              return;
+            }
+          }
+
+          if (fs.existsSync(filePath)) {
+            const stat = fs.statSync(filePath);
+            const ext = path.extname(fileName).slice(1);
+            const mimeType =
+              ext === "webm"
+                ? "video/webm"
+                : ext === "mp4"
+                  ? "video/mp4"
+                  : "video/mp4";
+
+            res.setHeader("Content-Type", mimeType);
+            res.setHeader("Content-Length", stat.size);
+            res.setHeader("Cache-Control", "max-age=31536000, immutable");
+
+            const stream = fs.createReadStream(filePath);
+            stream.pipe(res);
+          } else {
+            res.statusCode = 404;
+            res.end(
+              "Video not found - transformation may still be in progress",
+            );
+          }
+        });
+      },
+
       async load(id: string): Promise<string | null> {
         if (!filter(id)) return null;
 
@@ -66,29 +116,47 @@ export function videotools(
         const cachedFileName = `${ASSET_HASH}.${ASSET_MIME_TYPE}`;
         const cached_file = resolve(join(CACHE_DIR, cachedFileName));
 
-        if (!fs.existsSync(cached_file)) {
+        // If not cached and not already transforming, start transformation in background
+        if (!fs.existsSync(cached_file) && !transformationQueue.has(cachedFileName)) {
           log.info("Transforming video asset: ", cachedFileName);
-          const { VideoTransformer } = await import("./transformer.ts");
 
-          const transformer = new VideoTransformer({
-            CACHE_DIR,
-            srcFile: pathname,
-            outDir: resolve(CACHE_DIR),
-            ASSET_HASH,
-            directives: ASSET_DIRECTIVES,
-          });
+          const transformPromise = (async () => {
+            const { VideoTransformer } = await import("./transformer.ts");
+
+            const transformer = new VideoTransformer({
+              CACHE_DIR,
+              srcFile: pathname,
+              outDir: resolve(CACHE_DIR),
+              ASSET_HASH,
+              directives: ASSET_DIRECTIVES,
+            });
+
+            const result = await transformer.transformIntoURL({
+              directives: srcURL.searchParams,
+            });
+
+            // Upload to storage after transformation completes
+            const storageFileName = `@videotools/${cachedFileName}`;
+            if (!storageCache.get(storageFileName)) {
+              if (!(await storageAdapter?.hasFile(storageFileName))) {
+                log.info("Uploading video asset to S3: ", cachedFileName);
+                await storageAdapter?.uploadFile(cached_file, storageFileName);
+                storageCache.set(storageFileName, true);
+              }
+            }
+
+            transformationQueue.delete(cachedFileName);
+            return result;
+          })();
+
+          transformationQueue.set(cachedFileName, transformPromise);
+          // Don't await here - middleware will wait for the transformation
         }
 
-        const storageFileName = `@videotools/${cachedFileName}`;
-        if (!storageCache.get(storageFileName)) {
-          if (!(await storageAdapter?.hasFile(storageFileName))) {
-            log.info("Uploading video asset to S3: ", cachedFileName);
-            await storageAdapter?.uploadFile(cached_file, storageFileName);
-            storageCache.set(storageFileName, true);
-          }
-        }
+        // Return URL that will be served by our middleware
+        const videoUrl = `/@videotools/${cachedFileName}`;
 
-        return dataToEsm(cached_file.toString(), {
+        return dataToEsm(videoUrl, {
           namedExports: true,
           compact: true,
           preferConst: true,
@@ -131,4 +199,3 @@ export function videotools(
     },
   ];
 }
-

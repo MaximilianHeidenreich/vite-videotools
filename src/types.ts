@@ -42,12 +42,22 @@ export enum VideoFormat {
 }
 
 export interface FFMPEGConfig {
-  codec?: number;
+  codec?: string;
   bitRate?: number;
   width?: number;
   height?: number;
-  frameRate?: any; //ffmpeg.Rational;
-  pixelFormat?: any; //ffmpeg.PixelFormat;
+  frameRate?: number;
+  pixelFormat?: string;
+}
+
+export interface VideoMetadata {
+  width: number;
+  height: number;
+  codec: string;
+  bitRate: number;
+  frameRate: number;
+  pixelFormat: string;
+  duration: number;
 }
 
 export interface TransformDirectives {
