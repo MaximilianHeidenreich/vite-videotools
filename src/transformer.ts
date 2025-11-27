@@ -57,7 +57,7 @@ export class VideoTransformer {
       await Bun.$`ffprobe -v quiet -print_format json -show_streams -show_format ${inputFile}`.json();
 
     const videoStream = result.streams?.find(
-      (s: any) => s.codec_type === "video"
+      (s: any) => s.codec_type === "video",
     );
 
     if (!videoStream) {
@@ -94,9 +94,7 @@ export class VideoTransformer {
     }
 
     const format = directives.get("format")!;
-    const width = directives.has("w")
-      ? Number(directives.get("w"))
-      : undefined;
+    const width = directives.has("w") ? Number(directives.get("w")) : undefined;
     const height = directives.has("h")
       ? Number(directives.get("h"))
       : undefined;
@@ -157,7 +155,7 @@ export class VideoTransformer {
       this.metadata!.width,
       this.metadata!.height,
       width,
-      height
+      height,
     );
 
     // Build ffmpeg arguments
@@ -184,7 +182,10 @@ export class VideoTransformer {
     }
 
     // Scale filter for dimensions
-    if (outWidth !== this.metadata!.width || outHeight !== this.metadata!.height) {
+    if (
+      outWidth !== this.metadata!.width ||
+      outHeight !== this.metadata!.height
+    ) {
       args.push("-vf", `scale=${outWidth}:${outHeight}`);
     }
 
@@ -199,18 +200,70 @@ export class VideoTransformer {
 
     log.debug("FFMPEG args: %O", args);
 
+    const fileName = path.basename(input);
+    const totalDuration = this.metadata!.duration;
+    log.debug("Total duration: %d seconds", totalDuration);
+
     try {
       const proc = Bun.spawn(["ffmpeg", ...args], {
-        stdout: "inherit",
-        stderr: "inherit",
+        stdout: "ignore",
+        stderr: "pipe",
       });
 
-      const exitCode = await proc.exited;
+      // Parse stderr for progress
+      const reader = proc.stderr.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let lastProgress = -1;
+
+      const readProgress = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Parse progress lines - ffmpeg outputs: time=00:00:05.23 (variable decimal places)
+          const timeMatch = buffer.match(/time=(\d{2}:\d{2}:\d{2}\.\d+)/g);
+          if (timeMatch) {
+            const lastTimeStr = timeMatch[timeMatch.length - 1].replace(
+              "time=",
+              "",
+            );
+            const currentTime = parseTimeToSeconds(lastTimeStr);
+
+            if (totalDuration > 0) {
+              const progress = Math.min(
+                100,
+                Math.round((currentTime / totalDuration) * 100),
+              );
+
+              // Only log when progress changes significantly (every 10%)
+              if (progress >= lastProgress + 10) {
+                lastProgress = progress;
+                log.info(`${fileName}: ${progress}% encoded`);
+              }
+            } else {
+              // No duration info - just show time processed
+              log.debug(`${fileName}: processed ${lastTimeStr}`);
+            }
+          }
+
+          // Keep buffer small - only keep last 1000 chars
+          if (buffer.length > 1000) {
+            buffer = buffer.slice(-1000);
+          }
+        }
+      };
+
+      // Wait for both stderr reading and process exit
+      const [_, exitCode] = await Promise.all([readProgress(), proc.exited]);
 
       if (exitCode !== 0) {
         throw new Error(`ffmpeg exited with code ${exitCode}`);
       }
 
+      log.info(`[videotools] ${fileName}: complete!`);
       log.info(`Transform done! ${outputFile}`);
       return outputFile;
     } catch (error) {
