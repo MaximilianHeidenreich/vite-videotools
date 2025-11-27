@@ -117,7 +117,10 @@ export function videotools(
         const cached_file = resolve(join(CACHE_DIR, cachedFileName));
 
         // If not cached and not already transforming, start transformation in background
-        if (!fs.existsSync(cached_file) && !transformationQueue.has(cachedFileName)) {
+        if (
+          !fs.existsSync(cached_file) &&
+          !transformationQueue.has(cachedFileName)
+        ) {
           log.info("Transforming video asset: ", cachedFileName);
 
           const transformPromise = (async () => {
@@ -151,6 +154,15 @@ export function videotools(
 
           transformationQueue.set(cachedFileName, transformPromise);
           // Don't await here - middleware will wait for the transformation
+        } else if (fs.existsSync(cached_file)) {
+          const storageFileName = `@videotools/${cachedFileName}`;
+          if (!storageCache.get(storageFileName)) {
+            if (!(await storageAdapter?.hasFile(storageFileName))) {
+              log.info("Uploading video asset to S3: ", cachedFileName);
+              await storageAdapter?.uploadFile(cached_file, storageFileName);
+              storageCache.set(storageFileName, true);
+            }
+          }
         }
 
         // Return URL that will be served by our middleware
@@ -174,7 +186,7 @@ export function videotools(
 
         const PUBLIC_DIR = config.publicDir;
         const CWD_ROOT = config.root;
-        console.warn("env: ", ENV);
+        PUBLIC_PATH = ENV["VITE_VIDEOTOOLS_R2_PUBLIC_URL"];
       },
 
       async load(id: string): Promise<string | null> {
