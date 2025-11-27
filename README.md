@@ -14,8 +14,6 @@ bun run index.ts
 
 This project was created using `bun init` in bun v1.2.23. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
 
-"peerDependenciesMeta": {
-    "@mmomtchev/ffmpeg": {
-      "optional": true
-    }
-  }
+## Requirements
+
+This package requires `ffmpeg` and `ffprobe` to be installed locally and available in your PATH.
