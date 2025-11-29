@@ -1,33 +1,11 @@
-# vite-videotools2
-
-To install dependencies:
-
-```bash
-bun install
-```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.23. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
-
-## Requirements
-
-This package requires `ffmpeg` and `ffprobe` to be installed locally and available in your PATH.
-
-
 # vite-videotools
 
 Easily import video assets in your vite project and use custom transforms to generate different sizes, formats and quality levels on the fly.
 
 **Work In Progress**
 This plugin is still under active development. in its current state, there is not much documentation 
-and it is very much *not* configurable. I am using it on my sveltekit website so current config is 
-outputting all optimized video assets into `/static/@videotools/` directory.
-Its not on npm yet so you need to clone and link it locally if you actually want to give it a spin rn.
+and it is very much *not* configurable.
+Its not on npm yet so you need to clone and link it locally or add it as a github dependency if you actually want to give it a spin rn.
 
 ## Features
 
@@ -36,27 +14,32 @@ Its not on npm yet so you need to clone and link it locally if you actually want
   - [ ] Metadata
   - [ ] srcset
   - [ ] Video
-
 - [ ] Video Transforms
   - [ ] Format
     - [x] webp
     - [ ] mp4
   - [x] Width / Height
-  - [ ] Codec 
   - [x] FrameRate
   - [x] BitRate
+  - [ ] Codec 
+  - [ ] Multiple combinations
 
-### Advanced
+### Storage
 
-- [ ] Cloudflare R2 storage (https://www.cloudflare.com/developer-platform/products/r2/)
+- [x] Cloudflare R2 storage (https://www.cloudflare.com/developer-platform/products/r2/)
 - [ ] Vercel blobs storage
+- [ ] File system storage
+
+## Requirements
+
+This package requires `bun`, `ffmpeg` and `ffprobe` to be installed locally and available in your `PATH`.
+
 
 ## FAQ
 
 <details>
 <summary>Is it framework agnostic?</summary>
-Yes. I am using it mainly with Svelte, but it is a generic vite plugin, so if you're using vite you 
-can use it.
+Yes. I am using it mainly with Svelte, but it is a generic vite plugin, so if you're using vite you can use it. The only requirement is that during development, you need to use `bun` to start the vite dev-server, as the plugin uses bun's api to interface with ffmpeg and storage apis like S3 (cloudflare r2 for example).
 </details>
 
 <details>
@@ -79,7 +62,7 @@ TODO: give example code
 
 1. Install the package using your package manager of choice.
 ```bash
-bun i vite-videotools
+bun i -D github:maximilianheidenreich/vite-videotools#main
 ```
 
 2. Update your vite config.
